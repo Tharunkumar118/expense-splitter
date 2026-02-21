@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SplitWise — Secure Expense Splitter</title>
+
+  <!-- React 18 via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel for JSX in-browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── CSS Variables ─────────────────────────────────────────────────────── */
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #111118;
+      --surface2: #1a1a24;
+      --surface3: #22222f;
+      --border:   #2a2a3a;
+      --accent:   #6c63ff;
+      --accent2:  #ff6584;
+      --green:    #43d9a2;
+      --yellow:   #ffd166;
+      --blue:     #4da8e8;
+      --purple:   #c864ff;
+      --red:      #ff4757;
+      --text:     #e8e8f0;
+      --text2:    #9999b3;
+      --mono:     'JetBrains Mono', monospace;
+    }
+
+    /* ── Reset & Base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 15% 10%, rgba(108,99,255,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 90%, rgba(67,217,162,0.05) 0%, transparent 55%);
+    }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Animations ────────────────────────────────────────────────────────── */
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes fadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideIn { from { opacity:0; transform:translateY(8px);  } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Spinner ───────────────────────────────────────────────────────────── */
+    .spin {
+      border: 2px solid rgba(108,99,255,0.25);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Buttons ───────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 9px 18px; border-radius: 9px; border: none;
+      font-family: 'Space Grotesk', sans-serif; font-weight: 600;
+      font-size: 0.88rem; cursor: pointer; transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #7c74ff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,99,255,0.3); }
+    .btn-ghost    { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+    .btn-danger   { background: rgba(255,71,87,0.12); color: var(--red); border: 1px solid rgba(255,71,87,0.25); }
+    .btn-danger:hover:not(:disabled) { background: rgba(255,71,87,0.22); }
+    .btn-sm  { padding: 5px 12px; font-size: 0.78rem; border-radius: 7px; }
+    .btn-lg  { padding: 13px 28px; font-size: 0.97rem; }
+    .btn-full { width: 100%; }
+
+    /* ── Form Inputs ───────────────────────────────────────────────────────── */
+    .field { margin-bottom: 1.1rem; }
+    .field label { display: block; color: var(--text2); font-size: 0.83rem; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.02em; }
+    .inp, .sel {
+      width: 100%; padding: 11px 14px;
+      background: var(--surface2); border: 1.5px solid var(--border);
+      border-radius: 9px; color: var(--text);
+      font-family: 'Space Grotesk', sans-serif; font-size: 0.93rem;
+      transition: border-color 0.15s; outline: none;
+    }
+    .inp:focus, .sel:focus { border-color: var(--accent); }
+    .inp::placeholder { color: var(--text2); }
+    .sel option { background: var(--surface2); }
+    .err-msg { color: var(--red); font-size: 0.82rem; margin-top: 6px; }
+
+    /* ── Cards ─────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.4rem;
+    }
+    .card-hover { cursor: pointer; transition: all 0.2s; }
+    .card-hover:hover {
+      border-color: var(--accent); transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(108,99,255,0.14);
+    }
+
+    /* ── Modal ─────────────────────────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(5px); display: flex; align-items: center;
+      justify-content: center; z-index: 1000; padding: 1rem;
+    }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 18px; padding: 2rem; width: 100%; max-width: 500px;
+      max-height: 92vh; overflow-y: auto; animation: fadeUp 0.2s ease;
+    }
+    .modal-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 1.6rem; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1.5rem; }
+
+    /* ── Navbar ────────────────────────────────────────────────────────────── */
+    .navbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px; border-bottom: 1px solid var(--border);
+      background: rgba(10,10,15,0.88); backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-size: 1.35rem; font-weight: 700; color: var(--accent); letter-spacing: -0.4px; cursor: pointer; }
+    .logo span { color: var(--text); }
+    .nav-right { display: flex; align-items: center; gap: 14px; }
+    .nav-user  { font-size: 0.88rem; color: var(--text2); }
+
+    /* ── Avatar ────────────────────────────────────────────────────────────── */
+    .avatar {
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; font-weight: 700; color: #fff;
+      flex-shrink: 0; user-select: none;
+    }
+
+    /* ── Badges ────────────────────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; padding: 3px 11px; border-radius: 20px; font-size: 0.73rem; font-weight: 700; }
+    .badge-admin  { background: rgba(108,99,255,0.18); color: var(--accent); }
+    .badge-member { background: rgba(67,217,162,0.14); color: var(--green); }
+    .cat { display: inline-flex; padding: 2px 9px; border-radius: 20px; font-size: 0.71rem; font-weight: 700; }
+    .cat-Food         { background: rgba(255,107,107,0.14); color: #ff6b6b; }
+    .cat-Transport    { background: rgba(70,130,180,0.18); color: var(--blue); }
+    .cat-Accommodation{ background: rgba(255,209,102,0.14); color: var(--yellow); }
+    .cat-Activities   { background: rgba(67,217,162,0.14); color: var(--green); }
+    .cat-Shopping     { background: rgba(200,100,255,0.14); color: var(--purple); }
+    .cat-Other        { background: rgba(150,150,170,0.14); color: var(--text2); }
+
+    /* ── Tabs ──────────────────────────────────────────────────────────────── */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 1.8rem; overflow-x: auto; gap: 0; }
+    .tab {
+      padding: 12px 20px; cursor: pointer; white-space: nowrap;
+      color: var(--text2); background: none; border: none;
+      font-family: 'Space Grotesk', sans-serif; font-size: 0.92rem; font-weight: 600;
+      border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+      transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+    }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
+    .lock-tag { font-size: 0.63rem; background: rgba(108,99,255,0.16); color: var(--accent); padding: 2px 6px; border-radius: 4px; }
+
+    /* ── Expense Item ──────────────────────────────────────────────────────── */
+    .expense-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 14px 18px; border-radius: 11px;
+      background: var(--surface2); border: 1px solid var(--border);
+      margin-bottom: 10px; gap: 12px; animation: fadeUp 0.2s ease;
+    }
+
+    /* ── Balance / Settlement ──────────────────────────────────────────────── */
+    .balance-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 13px 18px; border-radius: 11px;
+      background: var(--surface2); border: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .settle-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 18px; border-radius: 11px;
+      background: rgba(67,217,162,0.04); border: 1px solid rgba(67,217,162,0.14);
+      margin-bottom: 8px;
+    }
+
+    /* ── Member Row ────────────────────────────────────────────────────────── */
+    .member-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-radius: 11px;
+      background: var(--surface2); border: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    /* ── Stat Card ─────────────────────────────────────────────────────────── */
+    .stat-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+    .stat-label { font-size: 0.78rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .stat-val { font-family: var(--mono); font-size: 1.55rem; font-weight: 700; color: var(--yellow); }
+
+    /* ── Info Row ──────────────────────────────────────────────────────────── */
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.91rem; }
+    .info-row:last-child { border-bottom: none; }
+    .info-key { color: var(--text2); }
+
+    /* ── Participant Chips ─────────────────────────────────────────────────── */
+    .chip {
+      padding: 5px 13px; border-radius: 20px; cursor: pointer;
+      border: 1.5px solid var(--border); font-size: 0.83rem;
+      transition: all 0.14s; user-select: none; font-weight: 500;
+    }
+    .chip.on { background: rgba(108,99,255,0.18); border-color: var(--accent); color: var(--accent); }
+    .chip.off { background: transparent; color: var(--text2); }
+
+    /* ── Toast ─────────────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 12px 20px; border-radius: 11px; font-size: 0.88rem; font-weight: 600;
+      background: var(--surface2); animation: slideIn 0.22s ease; max-width: 320px;
+    }
+    .toast.ok  { border: 1.5px solid var(--green); color: var(--green); }
+    .toast.err { border: 1.5px solid var(--red);   color: var(--red);   }
+
+    /* ── Empty State ───────────────────────────────────────────────────────── */
+    .empty { text-align: center; padding: 60px 24px; color: var(--text2); }
+    .empty .ico { font-size: 3rem; margin-bottom: 14px; }
+    .empty h3 { color: var(--text); margin-bottom: 6px; }
+
+    /* ── Auth Page ─────────────────────────────────────────────────────────── */
+    .auth-wrap {
+      min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 2rem;
+    }
+    .auth-box { width: 100%; max-width: 420px; }
+    .auth-tabs { display: flex; background: var(--surface2); border-radius: 10px; padding: 4px; margin-bottom: 1.75rem; }
+    .auth-tab  { flex: 1; padding: 9px; text-align: center; cursor: pointer; border-radius: 8px; font-weight: 600; font-size: 0.9rem; transition: all 0.15s; color: var(--text2); }
+    .auth-tab.on { background: var(--accent); color: #fff; }
+
+    /* ── Dashboard ─────────────────────────────────────────────────────────── */
+    .page { padding: 2rem; max-width: 1150px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-title { font-size: 1.7rem; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1.2rem; }
+
+    /* ── Group Header ──────────────────────────────────────────────────────── */
+    .group-header { margin-bottom: 1.8rem; }
+    .group-header h1 { font-size: 1.7rem; font-weight: 700; }
+
+    /* ── Divider ───────────────────────────────────────────────────────────── */
+    .divider { height: 1px; background: var(--border); margin: 1.6rem 0; }
+
+    /* ── Section Title ─────────────────────────────────────────────────────── */
+    .section-title { font-size: 0.78rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 14px; }
+
+    /* ── Responsive ────────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .page { padding: 1rem; }
+      .navbar { padding: 12px 16px; }
+      .modal { padding: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, createContext, useContext } = React;
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONSTANTS & HELPERS
+// ════════════════════════════════════════════════════════════════════════════
+const API_BASE = 'http://localhost:5000/api';
+
+const CATEGORIES = ['Food','Transport','Accommodation','Activities','Shopping','Other'];
+const CURRENCIES  = ['USD','INR','EUR','GBP','JPY','AUD','CAD'];
+
+const fmt = (n, cur = 'USD') =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: cur }).format(n || 0);
+
+const fmtDate = (d) =>
+  new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+const initials = (name = '') =>
+  name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+const avatarColor = (name = '') => {
+  const COLORS = ['#6c63ff','#ff6584','#43d9a2','#ffd166','#4da8e8','#c864ff','#ff6b6b','#f9a825'];
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return COLORS[Math.abs(h) % COLORS.length];
+};
+
+// ── API fetch helper with auth header ───────────────────────────────────────
+const apiFetch = async (path, options = {}) => {
+  const token = localStorage.getItem('sw_token');
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONTEXT
+// ════════════════════════════════════════════════════════════════════════════
+const AuthCtx  = createContext(null);
+const ToastCtx = createContext(null);
+
+function useAuth()  { return useContext(AuthCtx); }
+function useToast() { return useContext(ToastCtx); }
+
+// ════════════════════════════════════════════════════════════════════════════
+// SMALL UI COMPONENTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// Spinner
+function Spin({ size = 20 }) {
+  return <div className="spin" style={{ width: size, height: size }} />;
+}
+
+// Avatar circle
+function Av({ name, size = 36 }) {
+  return (
+    <div className="avatar" style={{ width: size, height: size, background: avatarColor(name), fontSize: size * 0.36 }}>
+      {initials(name)}
+    </div>
+  );
+}
+
+// Toast notification
+function Toast({ msg, type, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, []);
+  return <div className={`toast ${type === 'ok' ? 'ok' : 'err'}`}>{type === 'ok' ? '✓ ' : '⚠ '}{msg}</div>;
+}
+
+// Modal wrapper
+function Modal({ title, children, onClose, actions }) {
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose?.()}>
+      <div className="modal">
+        <div className="modal-title">{title}</div>
+        {children}
+        {actions && <div className="modal-actions">{actions}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Input field
+function Field({ label, error, children }) {
+  return (
+    <div className="field">
+      {label && <label>{label}</label>}
+      {children}
+      {error && <p className="err-msg">{error}</p>}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// AUTH PAGE
+// ════════════════════════════════════════════════════════════════════════════
+function AuthPage({ onLogin }) {
+  const [tab, setTab] = useState('login');
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [err, setErr]   = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const submit = async () => {
+    setErr('');
+    if (tab === 'register' && !form.name.trim()) return setErr('Name is required.');
+    if (!form.email.trim()) return setErr('Email is required.');
+    if (!form.password)     return setErr('Password is required.');
+    setBusy(true);
+    try {
+      const path = tab === 'login' ? '/auth/login' : '/auth/register';
+      const body = tab === 'login'
+        ? { email: form.email, password: form.password }
+        : form;
+      const data = await apiFetch(path, { method: 'POST', body });
+      localStorage.setItem('sw_token', data.token);
+      onLogin(data.user);
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const onKey = e => e.key === 'Enter' && submit();
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-box">
+        {/* Logo */}
+        <div style={{ marginBottom: 32 }}>
+          <div className="logo" style={{ fontSize: '2.4rem', cursor: 'default' }}>Split<span>Wise</span></div>
+          <p style={{ color: 'var(--text2)', marginTop: 6, fontSize: '0.93rem' }}>
+            Transparent, role-based expense splitting for student groups
+          </p>
+        </div>
+
+        {/* Card */}
+        <div className="card">
+          {/* Tabs */}
+          <div className="auth-tabs">
+            {['login','register'].map(t => (
+              <div key={t} className={`auth-tab ${tab===t?'on':''}`} onClick={() => { setTab(t); setErr(''); }}>
+                {t === 'login' ? 'Login' : 'Register'}
+              </div>
+            ))}
+          </div>
+
+          {tab === 'register' && (
+            <Field label="Full Name">
+              <input className="inp" placeholder="John Doe" value={form.name} onChange={set('name')} onKeyDown={onKey} />
+            </Field>
+          )}
+          <Field label="Email">
+            <input className="inp" type="email" placeholder="you@example.com" value={form.email} onChange={set('email')} onKeyDown={onKey} />
+          </Field>
+          <Field label="Password">
+            <input className="inp" type="password" placeholder="Min. 6 characters" value={form.password} onChange={set('password')} onKeyDown={onKey} />
+          </Field>
+
+          {err && <p className="err-msg" style={{ marginBottom: 14 }}>⚠ {err}</p>}
+
+          <button className="btn btn-primary btn-lg btn-full" onClick={submit} disabled={busy}>
+            {busy ? <Spin size={17} /> : tab === 'login' ? 'Login' : 'Create Account'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// NAVBAR
+// ════════════════════════════════════════════════════════════════════════════
+function Navbar({ onHome }) {
+  const { user, logout } = useAuth();
+  return (
+    <nav className="navbar">
+      <div className="logo" onClick={onHome}>Split<span>Wise</span></div>
+      <div className="nav-right">
+        <span className="nav-user">👋 {user?.name}</span>
+        <button className="btn btn-ghost btn-sm" onClick={logout}>Logout</button>
+      </div>
+    </nav>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CREATE GROUP MODAL
+// ════════════════════════════════════════════════════════════════════════════
+function CreateGroupModal({ onClose, onDone }) {
+  const { showToast } = useToast();
+  const [form, setForm] = useState({ name: '', description: '', currency: 'USD' });
+  const [err, setErr]   = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const submit = async () => {
+    if (!form.name.trim()) return setErr('Group name is required.');
+    setBusy(true); setErr('');
+    try {
+      const data = await apiFetch('/groups', { method: 'POST', body: form });
+      showToast('Group created!', 'ok');
+      onDone(data.group);
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <Modal
+      title="🏕 Create New Group"
+      onClose={onClose}
+      actions={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>
+          {busy ? <Spin size={16} /> : 'Create Group'}
+        </button>
+      </>}
+    >
+      <Field label="Group Name *">
+        <input className="inp" placeholder="e.g., Goa Trip 2025" value={form.name} onChange={set('name')} onKeyDown={e => e.key==='Enter'&&submit()} />
+      </Field>
+      <Field label="Description">
+        <input className="inp" placeholder="Short description..." value={form.description} onChange={set('description')} />
+      </Field>
+      <Field label="Currency">
+        <select className="sel" value={form.currency} onChange={set('currency')}>
+          {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </Field>
+      {err && <p className="err-msg">⚠ {err}</p>}
+    </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ADD MEMBER MODAL
+// ════════════════════════════════════════════════════════════════════════════
+function AddMemberModal({ groupId, onClose, onDone }) {
+  const { showToast } = useToast();
+  const [email, setEmail] = useState('');
+  const [err, setErr]     = useState('');
+  const [busy, setBusy]   = useState(false);
+
+  const submit = async () => {
+    if (!email.trim()) return setErr('Email is required.');
+    setBusy(true); setErr('');
+    try {
+      const data = await apiFetch(`/groups/${groupId}/members`, { method: 'POST', body: { email } });
+      showToast('Member added!', 'ok');
+      onDone(data.group);
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <Modal
+      title="👥 Add Member"
+      onClose={onClose}
+      actions={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>
+          {busy ? <Spin size={16} /> : 'Add Member'}
+        </button>
+      </>}
+    >
+      <p style={{ color:'var(--text2)', fontSize:'0.88rem', marginBottom:'1.2rem' }}>
+        The person must already have a SplitWise account registered with this email address.
+      </p>
+      <Field label="Member Email">
+        <input className="inp" type="email" placeholder="friend@example.com" value={email}
+          onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key==='Enter'&&submit()} />
+      </Field>
+      {err && <p className="err-msg">⚠ {err}</p>}
+    </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ADD EXPENSE MODAL
+// ════════════════════════════════════════════════════════════════════════════
+function AddExpenseModal({ group, currentUser, onClose, onDone }) {
+  const { showToast } = useToast();
+  const allPeople = [group.admin, ...group.members];
+
+  const [form, setForm] = useState({
+    description:  '',
+    amount:       '',
+    category:     'Other',
+    paidBy:       currentUser._id,
+    participants: allPeople.map(m => m._id),
+    date:         new Date().toISOString().split('T')[0],
+  });
+  const [err,  setErr]  = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const togglePart = id =>
+    setForm(f => ({
+      ...f,
+      participants: f.participants.includes(id)
+        ? f.participants.filter(p => p !== id)
+        : [...f.participants, id],
+    }));
+
+  const perPerson = form.amount && form.participants.length
+    ? (parseFloat(form.amount) / form.participants.length).toFixed(2)
+    : null;
+
+  const submit = async () => {
+    if (!form.description.trim())                     return setErr('Description is required.');
+    if (!form.amount || parseFloat(form.amount) <= 0) return setErr('Enter a valid amount.');
+    if (form.participants.length === 0)               return setErr('Select at least one participant.');
+    setBusy(true); setErr('');
+    try {
+      const data = await apiFetch('/expenses', {
+        method: 'POST',
+        body: { ...form, amount: parseFloat(form.amount), groupId: group._id },
+      });
+      showToast('Expense added!', 'ok');
+      onDone(data.expense);
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <Modal
+      title="💸 Add Expense"
+      onClose={onClose}
+      actions={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>
+          {busy ? <Spin size={16} /> : 'Add Expense'}
+        </button>
+      </>}
+    >
+      <Field label="Description *">
+        <input className="inp" placeholder="e.g., Hotel dinner" value={form.description} onChange={set('description')} />
+      </Field>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
+        <Field label={`Amount (${group.currency}) *`}>
+          <input className="inp" type="number" min="0" step="0.01" placeholder="0.00"
+            value={form.amount} onChange={set('amount')} />
+        </Field>
+        <Field label="Category">
+          <select className="sel" value={form.category} onChange={set('category')}>
+            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <Field label="Paid By">
+        <select className="sel" value={form.paidBy} onChange={set('paidBy')}>
+          {allPeople.map(m => (
+            <option key={m._id} value={m._id}>
+              {m.name}{m._id === currentUser._id ? ' (You)' : ''}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Date">
+        <input className="inp" type="date" value={form.date} onChange={set('date')} />
+      </Field>
+
+      <Field label="Split Between">
+        <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:6 }}>
+          {allPeople.map(m => (
+            <div key={m._id}
+              className={`chip ${form.participants.includes(m._id) ? 'on' : 'off'}`}
+              onClick={() => togglePart(m._id)}
+            >
+              {m.name.split(' ')[0]}{m._id === currentUser._id ? ' (You)' : ''}
+            </div>
+          ))}
+        </div>
+        {perPerson && (
+          <p style={{ color:'var(--text2)', fontSize:'0.8rem', marginTop:8 }}>
+            Each pays: <strong style={{ color:'var(--yellow)', fontFamily:'var(--mono)' }}>
+              {fmt(parseFloat(perPerson), group.currency)}
+            </strong>
+          </p>
+        )}
+      </Field>
+
+      {err && <p className="err-msg">⚠ {err}</p>}
+    </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB: EXPENSES
+// ════════════════════════════════════════════════════════════════════════════
+function ExpensesTab({ group, expenses, currentUser, isAdmin, onRefresh }) {
+  const { showToast } = useToast();
+  const [showAdd, setShowAdd] = useState(false);
+
+  const deleteExp = async id => {
+    if (!confirm('Delete this expense?')) return;
+    try {
+      await apiFetch(`/expenses/${id}`, { method: 'DELETE' });
+      showToast('Expense deleted.', 'ok');
+      onRefresh();
+    } catch (e) { showToast(e.message, 'err'); }
+  };
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <span style={{ color:'var(--text2)', fontSize:'0.88rem' }}>
+          {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
+        </span>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Expense</button>
+      </div>
+
+      {/* List */}
+      {expenses.length === 0 ? (
+        <div className="empty">
+          <div className="ico">💰</div>
+          <h3>No expenses yet</h3>
+          <p>Be the first to add one!</p>
+        </div>
+      ) : expenses.map(exp => (
+        <div key={exp._id} className="expense-row">
+          <div style={{ flex:1, minWidth:0 }}>
+            {/* Top row */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:5 }}>
+              <span style={{ fontWeight:700, fontSize:'0.97rem' }}>{exp.description}</span>
+              <span className={`cat cat-${exp.category}`}>{exp.category}</span>
+            </div>
+            {/* Meta */}
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 12px', fontSize:'0.8rem', color:'var(--text2)' }}>
+              <span>Paid by <strong style={{ color:'var(--text)' }}>{exp.paidBy?.name}</strong></span>
+              <span>·</span>
+              <span>Split {exp.participants?.length}-way ({fmt(exp.amount / (exp.participants?.length||1), group.currency)} each)</span>
+              <span>·</span>
+              {/* AUDIT TRAIL */}
+              <span style={{ color:'var(--accent)' }}>Entered by: <strong>{exp.enteredBy?.name}</strong></span>
+              <span>·</span>
+              <span>{fmtDate(exp.date)}</span>
+            </div>
+            {/* Participants */}
+            <div style={{ fontSize:'0.76rem', color:'var(--text2)', marginTop:4 }}>
+              Participants: {exp.participants?.map(p => p.name.split(' ')[0]).join(', ')}
+            </div>
+          </div>
+          {/* Right side */}
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, flexShrink:0 }}>
+            <span style={{ fontFamily:'var(--mono)', fontWeight:700, fontSize:'1.1rem', color:'var(--yellow)' }}>
+              {fmt(exp.amount, group.currency)}
+            </span>
+            {/* Delete: only enterer or admin */}
+            {(exp.enteredBy?._id === currentUser._id || isAdmin) && (
+              <button className="btn btn-danger btn-sm" onClick={() => deleteExp(exp._id)}>Delete</button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Add Expense Modal */}
+      {showAdd && (
+        <AddExpenseModal
+          group={group}
+          currentUser={currentUser}
+          onClose={() => setShowAdd(false)}
+          onDone={() => { setShowAdd(false); onRefresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB: BALANCES
+// ════════════════════════════════════════════════════════════════════════════
+function BalancesTab({ group, balances, settlements, totalExpenses, currentUser }) {
+  return (
+    <div>
+      {/* Stats row */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'1rem', marginBottom:'1.8rem' }}>
+        <div className="stat-card">
+          <div className="stat-label">Total Spent</div>
+          <div className="stat-val">{fmt(totalExpenses, group.currency)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Members</div>
+          <div className="stat-val">{(group.members?.length || 0) + 1}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Settlements</div>
+          <div className="stat-val">{settlements.length}</div>
+        </div>
+        {group.tripBudget > 0 && (
+          <div className="stat-card">
+            <div className="stat-label">Budget Left</div>
+            <div className="stat-val" style={{ color: group.tripBudget - totalExpenses >= 0 ? 'var(--green)' : 'var(--red)' }}>
+              {fmt(group.tripBudget - totalExpenses, group.currency)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Individual Balances */}
+      <div className="section-title">Individual Balances</div>
+      {balances.map(b => {
+        const pos = b.amount >  0.009;
+        const neg = b.amount < -0.009;
+        return (
+          <div key={b.user._id} className="balance-row">
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <Av name={b.user.name} />
+              <div>
+                <div style={{ fontWeight:600 }}>
+                  {b.user.name}
+                  {b.user._id === currentUser._id && <span style={{ color:'var(--text2)', fontWeight:400, fontSize:'0.8rem' }}> (you)</span>}
+                </div>
+                <div style={{ fontSize:'0.78rem', color:'var(--text2)' }}>
+                  {pos ? '🟢 is owed money' : neg ? '🔴 owes money' : '⚪ settled up'}
+                </div>
+              </div>
+            </div>
+            <span style={{
+              fontFamily:'var(--mono)', fontWeight:700, fontSize:'1.05rem',
+              color: pos ? 'var(--green)' : neg ? 'var(--red)' : 'var(--text2)',
+            }}>
+              {pos ? '+' : ''}{fmt(b.amount, group.currency)}
+            </span>
+          </div>
+        );
+      })}
+
+      <div className="divider" />
+
+      {/* Suggested Settlements */}
+      <div className="section-title">Suggested Settlements (Debt-Minimized)</div>
+      {settlements.length === 0 ? (
+        <div className="empty" style={{ padding:'2.5rem' }}>
+          <div className="ico">🎉</div>
+          <h3>All settled up!</h3>
+          <p>No payments needed between members</p>
+        </div>
+      ) : settlements.map((s, i) => (
+        <div key={i} className="settle-row">
+          <Av name={s.from.name} />
+          <div style={{ flex:1 }}>
+            <strong>{s.from.name}</strong>
+            <span style={{ color:'var(--text2)' }}> pays </span>
+            <strong>{s.to.name}</strong>
+          </div>
+          <span style={{ fontSize:'1.4rem', color:'var(--green)' }}>→</span>
+          <Av name={s.to.name} />
+          <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--green)', fontSize:'1.1rem', marginLeft:4 }}>
+            {fmt(s.amount, group.currency)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB: MEMBERS
+// ════════════════════════════════════════════════════════════════════════════
+function MembersTab({ group, currentUser, isAdmin, onGroupUpdate }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const { showToast } = useToast();
+
+  const allPeople = [
+    { ...group.admin, role: 'admin' },
+    ...(group.members || []).map(m => ({ ...m, role: 'member' })),
+  ];
+
+  const removeMember = async memberId => {
+    if (!confirm('Remove this member?')) return;
+    try {
+      const data = await apiFetch(`/groups/${group._id}/members/${memberId}`, { method: 'DELETE' });
+      showToast('Member removed.', 'ok');
+      onGroupUpdate(data.group);
+    } catch (e) { showToast(e.message, 'err'); }
+  };
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <span style={{ color:'var(--text2)', fontSize:'0.88rem' }}>
+          {allPeople.length} member{allPeople.length !== 1 ? 's' : ''}
+        </span>
+        {isAdmin && <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Member</button>}
+      </div>
+
+      {/* List */}
+      {allPeople.map(m => (
+        <div key={m._id} className="member-row">
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <Av name={m.name} />
+            <div>
+              <div style={{ fontWeight:600 }}>
+                {m.name}
+                {m._id === currentUser._id && <span style={{ color:'var(--text2)', fontWeight:400, fontSize:'0.8rem' }}> (you)</span>}
+              </div>
+              <div style={{ fontSize:'0.8rem', color:'var(--text2)' }}>{m.email}</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span className={`badge ${m.role === 'admin' ? 'badge-admin' : 'badge-member'}`}>
+              {m.role === 'admin' ? '👑 Admin' : 'Member'}
+            </span>
+            {isAdmin && m.role !== 'admin' && m._id !== currentUser._id && (
+              <button className="btn btn-danger btn-sm" onClick={() => removeMember(m._id)}>Remove</button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {!isAdmin && (
+        <div style={{ marginTop:16, padding:'12px 16px', background:'rgba(108,99,255,0.05)', border:'1px solid rgba(108,99,255,0.18)', borderRadius:10, fontSize:'0.85rem', color:'var(--text2)' }}>
+          🔒 Only the group admin can add or remove members.
+        </div>
+      )}
+
+      {showAdd && (
+        <AddMemberModal
+          groupId={group._id}
+          onClose={() => setShowAdd(false)}
+          onDone={g => { setShowAdd(false); onGroupUpdate(g); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB: PLANNING (Admin-only edit; locked summary for members)
+// ════════════════════════════════════════════════════════════════════════════
+function PlanningTab({ group, currentUser, isAdmin, onGroupUpdate }) {
+  const { showToast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [busy,    setBusy]    = useState(false);
+  const [form, setForm] = useState({
+    name:        group.name,
+    description: group.description || '',
+    destination: group.destination || '',
+    currency:    group.currency || 'USD',
+    tripBudget:  group.tripBudget || '',
+    startDate:   group.tripDates?.start ? group.tripDates.start.split('T')[0] : '',
+    endDate:     group.tripDates?.end   ? group.tripDates.end.split('T')[0]   : '',
+  });
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/groups/${group._id}`, {
+        method: 'PUT',
+        body: {
+          name:        form.name,
+          description: form.description,
+          destination: form.destination,
+          currency:    form.currency,
+          tripBudget:  parseFloat(form.tripBudget) || 0,
+          tripDates:   { start: form.startDate || null, end: form.endDate || null },
+        },
+      });
+      onGroupUpdate(res.group);
+      setEditing(false);
+      showToast('Trip plan updated!', 'ok');
+    } catch (e) { showToast(e.message, 'err'); }
+    setBusy(false);
+  };
+
+  // ── MEMBER VIEW: locked summary ──────────────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <div>
+        <div style={{ padding:'14px 18px', background:'rgba(108,99,255,0.05)', border:'1px solid rgba(108,99,255,0.2)', borderRadius:12, marginBottom:18 }}>
+          <div style={{ color:'var(--accent)', fontWeight:700, marginBottom:6 }}>🔒 Trip Planning — Admin Only</div>
+          <p style={{ color:'var(--text2)', fontSize:'0.87rem' }}>
+            Only <strong style={{ color:'var(--text)' }}>{group.admin?.name}</strong> (the group admin / creator) can view and edit the full trip plan. This prevents members from misleadingly modifying the main trip configuration.
+          </p>
+        </div>
+        <div className="card">
+          <div className="info-row"><span className="info-key">Group</span> <span>{group.name}</span></div>
+          {group.description && <div className="info-row"><span className="info-key">Description</span> <span>{group.description}</span></div>}
+          {group.destination && <div className="info-row"><span className="info-key">Destination</span> <span>📍 {group.destination}</span></div>}
+          <div className="info-row"><span className="info-key">Currency</span> <span style={{ fontFamily:'var(--mono)' }}>{group.currency}</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ADMIN VIEW: full planning ────────────────────────────────────────────
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <div>
+          <h3 style={{ fontWeight:700 }}>Trip Planning</h3>
+          <p style={{ color:'var(--text2)', fontSize:'0.85rem', marginTop:3 }}>Configure trip details, budget, and dates</p>
+        </div>
+        {!editing && <button className="btn btn-ghost" onClick={() => setEditing(true)}>✏️ Edit</button>}
+      </div>
+
+      {editing ? (
+        <div className="card">
+          <Field label="Group Name"><input className="inp" value={form.name} onChange={set('name')} /></Field>
+          <Field label="Description"><input className="inp" placeholder="Short description..." value={form.description} onChange={set('description')} /></Field>
+          <Field label="Destination"><input className="inp" placeholder="e.g., Goa, India" value={form.destination} onChange={set('destination')} /></Field>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
+            <Field label="Currency">
+              <select className="sel" value={form.currency} onChange={set('currency')}>
+                {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Total Budget">
+              <input className="inp" type="number" min="0" step="0.01" placeholder="0.00" value={form.tripBudget} onChange={set('tripBudget')} />
+            </Field>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
+            <Field label="Start Date"><input className="inp" type="date" value={form.startDate} onChange={set('startDate')} /></Field>
+            <Field label="End Date"><input className="inp" type="date" value={form.endDate} onChange={set('endDate')} /></Field>
+          </div>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
+            <button className="btn btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={save} disabled={busy}>
+              {busy ? <Spin size={16} /> : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="info-row"><span className="info-key">Group Name</span><span style={{ fontWeight:600 }}>{group.name}</span></div>
+          {group.description && <div className="info-row"><span className="info-key">Description</span><span>{group.description}</span></div>}
+          <div className="info-row"><span className="info-key">Destination</span><span>{group.destination || <span style={{color:'var(--text2)'}}>—</span>}</span></div>
+          <div className="info-row"><span className="info-key">Currency</span><span style={{ fontFamily:'var(--mono)' }}>{group.currency}</span></div>
+          <div className="info-row">
+            <span className="info-key">Total Budget</span>
+            <span style={{ fontFamily:'var(--mono)', color:'var(--yellow)', fontWeight:700 }}>
+              {group.tripBudget > 0 ? fmt(group.tripBudget, group.currency) : <span style={{color:'var(--text2)'}}>—</span>}
+            </span>
+          </div>
+          <div className="info-row">
+            <span className="info-key">Trip Dates</span>
+            <span>{group.tripDates?.start
+              ? `${fmtDate(group.tripDates.start)} → ${fmtDate(group.tripDates.end)}`
+              : <span style={{color:'var(--text2)'}}>Not set</span>}
+            </span>
+          </div>
+          <div className="info-row"><span className="info-key">Admin</span><span>👑 {group.admin?.name}</span></div>
+          <div className="info-row"><span className="info-key">Created</span><span>{fmtDate(group.createdAt)}</span></div>
+          <div className="info-row"><span className="info-key">Total Members</span><span>{(group.members?.length || 0) + 1}</span></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// GROUP DETAIL PAGE
+// ════════════════════════════════════════════════════════════════════════════
+function GroupDetail({ groupId, currentUser, onBack }) {
+  const { showToast } = useToast();
+  const [group,       setGroup]       = useState(null);
+  const [isAdmin,     setIsAdmin]     = useState(false);
+  const [balanceData, setBalanceData] = useState(null);
+  const [activeTab,   setActiveTab]   = useState('expenses');
+  const [loading,     setLoading]     = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const [gRes, bRes] = await Promise.all([
+        apiFetch(`/groups/${groupId}`),
+        apiFetch(`/groups/${groupId}/balances`),
+      ]);
+      setGroup(gRes.group);
+      setIsAdmin(gRes.isAdmin);
+      setBalanceData(bRes);
+    } catch (e) {
+      showToast(e.message, 'err');
+      onBack();
+    }
+    setLoading(false);
+  }, [groupId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const deleteGroup = async () => {
+    if (!confirm(`Delete "${group.name}"? All expenses will be permanently deleted.`)) return;
+    try {
+      await apiFetch(`/groups/${groupId}`, { method: 'DELETE' });
+      showToast('Group deleted.', 'ok');
+      onBack(true);
+    } catch (e) { showToast(e.message, 'err'); }
+  };
+
+  if (loading) return (
+    <div style={{ display:'flex', justifyContent:'center', padding:'5rem' }}>
+      <Spin size={48} />
+    </div>
+  );
+  if (!group) return null;
+
+  const TABS = [
+    { key:'expenses', label:'💸 Expenses' },
+    { key:'balances', label:'⚖️ Balances' },
+    { key:'members',  label:'👥 Members' },
+    { key:'planning', label:'🗺 Planning', adminLock: !isAdmin },
+  ];
+
+  return (
+    <div className="page">
+      {/* Back */}
+      <div onClick={onBack}
+        style={{ display:'inline-flex', alignItems:'center', gap:6, color:'var(--text2)', cursor:'pointer', marginBottom:20, fontSize:'0.88rem' }}
+        onMouseEnter={e => e.currentTarget.style.color='var(--text)'}
+        onMouseLeave={e => e.currentTarget.style.color='var(--text2)'}
+      >
+        ← Back to Dashboard
+      </div>
+
+      {/* Group header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24, flexWrap:'wrap', gap:'1rem' }}>
+        <div>
+          <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:6 }}>
+            <h1 style={{ fontSize:'1.7rem', fontWeight:700 }}>{group.name}</h1>
+            <span className={`badge ${isAdmin ? 'badge-admin' : 'badge-member'}`}>
+              {isAdmin ? '👑 Admin' : 'Member'}
+            </span>
+          </div>
+          {group.description && <p style={{ color:'var(--text2)', fontSize:'0.9rem' }}>{group.description}</p>}
+          {group.destination  && <p style={{ color:'var(--text2)', fontSize:'0.85rem' }}>📍 {group.destination}</p>}
+          <p style={{ color:'var(--text2)', fontSize:'0.82rem', marginTop:4 }}>
+            {group.currency} · {(group.members?.length||0)+1} members
+          </p>
+        </div>
+        {isAdmin && (
+          <button className="btn btn-danger" onClick={deleteGroup}>🗑 Delete Group</button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="tabs">
+        {TABS.map(t => (
+          <button key={t.key} className={`tab ${activeTab === t.key ? 'active' : ''}`}
+            onClick={() => setActiveTab(t.key)}>
+            {t.label}
+            {t.adminLock && <span className="lock-tag">ADMIN</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'expenses' && balanceData && (
+        <ExpensesTab
+          group={group}
+          expenses={balanceData.expenses}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          onRefresh={load}
+        />
+      )}
+      {activeTab === 'balances' && balanceData && (
+        <BalancesTab
+          group={group}
+          balances={balanceData.balances}
+          settlements={balanceData.settlements}
+          totalExpenses={balanceData.totalExpenses}
+          currentUser={currentUser}
+        />
+      )}
+      {activeTab === 'members' && (
+        <MembersTab
+          group={group}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          onGroupUpdate={g => setGroup(g)}
+        />
+      )}
+      {activeTab === 'planning' && (
+        <PlanningTab
+          group={group}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          onGroupUpdate={g => setGroup(g)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// DASHBOARD PAGE
+// ════════════════════════════════════════════════════════════════════════════
+function Dashboard({ currentUser, onSelectGroup }) {
+  const { showToast } = useToast();
+  const [groups,     setGroups]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/groups')
+      .then(d => setGroups(d.groups))
+      .catch(e => showToast(e.message, 'err'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div style={{ display:'flex', justifyContent:'center', padding:'5rem' }}>
+      <Spin size={48} />
+    </div>
+  );
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">My Groups</h1>
+          <p style={{ color:'var(--text2)', fontSize:'0.9rem', marginTop:4 }}>
+            {groups.length} group{groups.length !== 1 ? 's' : ''} · track shared expenses
+          </p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create Group</button>
+      </div>
+
+      {groups.length === 0 ? (
+        <div className="empty">
+          <div className="ico">🏕</div>
+          <h3>No groups yet</h3>
+          <p style={{ marginBottom:20 }}>Create a group to start splitting expenses</p>
+          <button className="btn btn-primary btn-lg" onClick={() => setShowCreate(true)}>Create your first group</button>
+        </div>
+      ) : (
+        <div className="grid">
+          {groups.map(g => {
+            const adminUser = g.admin;
+            const mine = adminUser._id === currentUser._id;
+            return (
+              <div key={g._id} className="card card-hover" onClick={() => onSelectGroup(g._id)}
+                style={{ animation:'fadeUp 0.25s ease' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <span className={`badge ${mine ? 'badge-admin' : 'badge-member'}`}>
+                    {mine ? '👑 Admin' : 'Member'}
+                  </span>
+                  <span style={{ fontFamily:'var(--mono)', fontSize:'0.8rem', color:'var(--text2)' }}>{g.currency}</span>
+                </div>
+                <h3 style={{ fontSize:'1.05rem', fontWeight:700, margin:'12px 0 5px' }}>{g.name}</h3>
+                {g.description && <p style={{ color:'var(--text2)', fontSize:'0.84rem', marginBottom:4 }}>{g.description}</p>}
+                {g.destination && <p style={{ color:'var(--text2)', fontSize:'0.8rem' }}>📍 {g.destination}</p>}
+                <div style={{ display:'flex', justifyContent:'space-between', marginTop:14, paddingTop:14, borderTop:'1px solid var(--border)', fontSize:'0.8rem', color:'var(--text2)' }}>
+                  <span>👥 {(g.members?.length||0)+1} members</span>
+                  <span>{fmtDate(g.createdAt)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateGroupModal
+          onClose={() => setShowCreate(false)}
+          onDone={g => { setShowCreate(false); setGroups(prev => [g, ...prev]); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ROOT APP
+// ════════════════════════════════════════════════════════════════════════════
+function App() {
+  const [user,    setUser]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view,    setView]    = useState({ page: 'dashboard', groupId: null }); // 'dashboard' | 'group'
+  const [toasts,  setToasts]  = useState([]);
+
+  const showToast = useCallback((msg, type = 'ok') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, msg, type }]);
+  }, []);
+
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('sw_token');
+    setUser(null);
+    setView({ page: 'dashboard', groupId: null });
+  }, []);
+
+  // Validate stored token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('sw_token');
+    if (!token) { setLoading(false); return; }
+    apiFetch('/auth/me')
+      .then(d => setUser(d.user))
+      .catch(() => localStorage.removeItem('sw_token'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <Spin size={52} />
+    </div>
+  );
+
+  return (
+    <AuthCtx.Provider value={{ user, logout }}>
+      <ToastCtx.Provider value={{ showToast }}>
+
+        {!user ? (
+          <AuthPage onLogin={u => setUser(u)} />
+        ) : (
+          <>
+            <Navbar onHome={() => setView({ page:'dashboard', groupId:null })} />
+
+            {view.page === 'dashboard' && (
+              <Dashboard
+                currentUser={user}
+                onSelectGroup={id => setView({ page:'group', groupId: id })}
+              />
+            )}
+
+            {view.page === 'group' && (
+              <GroupDetail
+                groupId={view.groupId}
+                currentUser={user}
+                onBack={() => setView({ page:'dashboard', groupId:null })}
+              />
+            )}
+          </>
+        )}
+
+        {/* Toasts */}
+        <div style={{ position:'fixed', bottom:24, right:24, zIndex:9999, display:'flex', flexDirection:'column', gap:8 }}>
+          {toasts.map(t => (
+            <Toast key={t.id} msg={t.msg} type={t.type} onDone={() => removeToast(t.id)} />
+          ))}
+        </div>
+
+      </ToastCtx.Provider>
+    </AuthCtx.Provider>
+  );
+}
+
+// Mount
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
